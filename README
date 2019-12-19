@@ -1,0 +1,12 @@
+Package enc provides a simple interface for encrypting and decrypting data to
+a useful format.
+
+First, the data item is encoded to as a gob. Next, the encoding is compressed
+to the gzip format. This is encrypted with AES-256 in Galois/Counter mode.
+The input password is derived with argon2i and the hash is used as the key to
+AES. The output data is in the following format.
+
+	[enc version][argon2 salt][AES nonce][encrypted data]
+
+This format aims for minimal data size (from gzip), data integrity (from
+GCM), and data confidentiality (from AES).
