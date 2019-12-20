@@ -18,14 +18,16 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha512"
 	"encoding/binary"
 	"encoding/gob"
 	"errors"
+	"io"
 
 	"golang.org/x/crypto/argon2"
 )
 
-// Errors related to invalid data input.
+// Errors related to invalid input data.
 var (
 	ErrNoNonce        = errors.New("enc: data does not contain a nonce")
 	ErrNoSalt         = errors.New("enc: data does not contain a salt")
@@ -57,7 +59,7 @@ func Decrypt(data, password []byte, d interface{}) error {
 	}
 
 	salt, data := data[:saltSize], data[saltSize:]
-	c, err := aes.NewCipher(hash(password, salt))
+	c, err := aes.NewCipher(derive(password, salt))
 	if err != nil {
 		return err
 	}
@@ -91,8 +93,9 @@ func Decrypt(data, password []byte, d interface{}) error {
 	return r.Close()
 }
 
-// Encrypt data according to the specified format.
-func Encrypt(password []byte, e interface{}) (data []byte, err error) {
+// Encrypt data according to the specified format. A SHA-512 hash of the output
+// data is given in hash.
+func Encrypt(password []byte, e interface{}) (data, hash []byte, err error) {
 	var encoded bytes.Buffer
 
 	if err = gob.NewEncoder(&encoded).Encode(e); err != nil {
@@ -115,7 +118,7 @@ func Encrypt(password []byte, e interface{}) (data []byte, err error) {
 		return
 	}
 
-	c, err := aes.NewCipher(hash(password, salt))
+	c, err := aes.NewCipher(derive(password, salt))
 	if err != nil {
 		return
 	}
@@ -131,29 +134,31 @@ func Encrypt(password []byte, e interface{}) (data []byte, err error) {
 	}
 
 	var buf bytes.Buffer
+	sha := sha512.New()
+	mw := io.MultiWriter(&buf, sha)
 
 	ver := make([]byte, 8)
 	binary.LittleEndian.PutUint64(ver, Version)
 
-	if _, err = buf.Write(ver); err != nil {
+	if _, err = mw.Write(ver); err != nil {
 		return
 	}
 
-	if _, err = buf.Write(salt); err != nil {
+	if _, err = mw.Write(salt); err != nil {
 		return
 	}
 
-	if _, err = buf.Write(nonce); err != nil {
+	if _, err = mw.Write(nonce); err != nil {
 		return
 	}
 
-	if _, err = buf.Write(gcm.Seal(nil, nonce, compressed.Bytes(), nil)); err != nil {
+	if _, err = mw.Write(gcm.Seal(nil, nonce, compressed.Bytes(), nil)); err != nil {
 		return
 	}
 
-	return buf.Bytes(), nil
+	return buf.Bytes(), sha.Sum(nil), nil
 }
 
-func hash(password, salt []byte) []byte {
+func derive(password, salt []byte) []byte {
 	return argon2.Key(password, salt, 3, 32*1024, 4, 32)
 }

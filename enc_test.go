@@ -16,7 +16,7 @@ func TestIdempotent(t *testing.T) {
 
 	const pass = "trek"
 
-	data, err := Encrypt([]byte(pass), &before)
+	data, _, err := Encrypt([]byte(pass), &before)
 
 	if err != nil {
 		t.Fatal(err)

@@ -2,6 +2,7 @@ package enc_test
 
 import (
 	"bufio"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -11,10 +12,16 @@ import (
 )
 
 func Example() {
-	// When placed in main, this program takes an input file and an output
-	// filename. The contents of the input file are encrypted and written to
-	// the output filename, using the password read from standard input.
-	// The data is then decrypted again and printed to standard output.
+	// When placed in main, this program:
+	//
+	// 1. Take an input file and an output filename.
+	//
+	// 2. The contents of the input file are encrypted and written to the
+	// output filename. A hash of the output file is written to standard
+	// output.
+	//
+	// 3. The data is then decrypted again and printed to standard output.
+
 	if len(os.Args) < 3 {
 		log.Fatal("usage: ./enc in out")
 	}
@@ -30,10 +37,12 @@ func Example() {
 		log.Fatal(err)
 	}
 
-	data, err := enc.Encrypt(pass, &in)
+	data, hash, err := enc.Encrypt(pass, &in)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	fmt.Println(hex.EncodeToString(hash))
 
 	if err = ioutil.WriteFile(os.Args[2], data, 0600); err != nil {
 		log.Fatal(err)
